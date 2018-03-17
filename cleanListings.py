@@ -1,4 +1,5 @@
 from psycopg2 import connect
+import json
 import re
 
 # establish connection
@@ -24,20 +25,20 @@ def Nbedrooms(nbedrooms):
             nbedrooms = re.sub('br', '', nbedrooms)
             return int(nbedrooms)
         except TypeError:
-            return 'NULL'
-    else: return 'NULL'
+            return None
+    else: return None
 
 def Neighborhoods(neighborhoods):
     # return a list of neighborhoods
     neighborhoods = re.sub('[\\(,\\)]', '', neighborhoods)
-    if neighborhoods != 'NULL':
+    if neighborhoods != None:
         neighborhoods = [x.strip() for x in neighborhoods.split('/')]
     return neighborhoods
 
 
 def LatLon(latlon):
     try: return float(latlon)
-    except ValueError: return 'NULL'
+    except ValueError: return None
 
 
 for i in datapull:
@@ -48,7 +49,7 @@ for i in datapull:
     rowDict = {}
 
     # clean the id
-    rowDict['id'] = int(i['id'])
+    rowDict['id'] = i['id']
 
     # clean the price
     rowDict['price'] = Price(i['price'])
@@ -65,27 +66,25 @@ for i in datapull:
 
     # clean neighborhood
     # Uncertain to best way to handle - JSON? Text? Binary Indicator?
-    rowDict['neighborhood'] = Neighborhoods(i['neighborhood'])
+    rowDict['neighborhood'] = json.dumps(Neighborhoods(i['neighborhood']))
 
     # clean the link
     rowDict['link'] = i['link'].strip()
 
-    print (rowDict)
-
     query = """                              
-    UPDATE commuter
-    SET id = {id}, 
-        datetime = {datetime},
-        neighborhood = {neighborhood}, 
-        price = {price}, 
-        nbedrooms = {nbedrooms},
-        link = {link}, 
-        latitude = {latitude}, 
-        longitude = {longitude}
-    WHERE datapull->> 'id' = {id};
-    """.format(rowDict)
+    UPDATE craigslistpull
+    SET id = %(id)s, 
+        datetime = %(datetime)s,
+        neighborhood = %(neighborhood)s, 
+        price = %(price)s, 
+        nbedroom = %(nbedrooms)s,
+        link = %(link)s, 
+        latitude = %(latitude)s, 
+        longitude = %(longitude)s
+    WHERE datapull->> 'id' = %(id)s;
+    """
 
-    cur.execute(query)
+    cur.execute(query, rowDict)
 
 conn.commit()
 conn.close()
