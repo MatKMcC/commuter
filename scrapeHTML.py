@@ -34,11 +34,11 @@
 # use beautifulsoup to parse
 from bs4 import BeautifulSoup
 from psycopg2 import connect
+from datetime import datetime
 import requests
 import json
-
-f = open('exampleRootPage.html')
-html = f.read()
+import gzip
+import io
 
 
 def testSoup(soupRequest, text = True):
@@ -53,12 +53,12 @@ def testSoup(soupRequest, text = True):
     """
 
     try:
-        if text == True: return soupRequest.text if soupRequest else 'NULL'
-        else: return soupRequest.text if soupRequest else 'NULL'
-    except AttributeError: return 'NULL'
+        if text == True: return soupRequest.text if soupRequest else None
+        else: return soupRequest.text if soupRequest else None
+    except AttributeError: return None
 
 
-def parseListings(htmlString):
+def parseListings(htmlString, date_limit = None):
     """
     Parse the listings from a page of Craigslist results
     :param htmlString: A string of html
@@ -71,15 +71,21 @@ def parseListings(htmlString):
 
     # iterate through results and build an array of dictionaries
     results = []
+
+    
     for l in listings:
-        result = {}
-        result['id'] = l.find('a')['data-id']
-        result['link'] = l.find('a')['href']
-        result['price'] = testSoup(l.find(class_='result-price'), text=True)
-        result['n. bedrooms'] = testSoup(l.find(class_='housing'), text=True)
-        result['neighborhood'] = testSoup(l.find(class_='result-hood'), text=True)
-        result['datetime'] = l.find('time')['datetime']
-        results.append(result)
+
+        listing_date = datetime.strptime(l.find('time')['datetime'], '%Y-%m-%d %H:%M')
+       
+        if listing_date > date_limit or date_limit == None:
+            result = {}
+            result['id'] = l.find('a')['data-id']
+            result['link'] = l.find('a')['href']
+            result['price'] = testSoup(l.find(class_='result-price'), text=True)
+            result['n. bedrooms'] = testSoup(l.find(class_='housing'), text=True)
+            result['neighborhood'] = testSoup(l.find(class_='result-hood'), text=True)
+            result['datetime'] = l.find('time')['datetime']
+            results.append(result)
 
     return results
 
@@ -90,7 +96,7 @@ def extractLatLon(url):
     soup = BeautifulSoup(response, 'lxml')
     map = soup.find('div', class_='viewposting')
     try: return map['data-latitude'], map['data-longitude']
-    except TypeError: return 'NUll', 'NULL'
+    except TypeError: return None, None
 
 def insertDataQuery(listings,tablename):
 
@@ -127,16 +133,35 @@ def insertIntoDatabase(dbName, listings):
     conn.commit()
 
 
-# parse data from listings
-listings = parseListings(html)
 
-# for each link in the listings - extract latitude and longitude
-for l in listings:
-    if extractLatLon(l['link']):
-        lat, lon = extractLatLon(l['link'])
-        l['latitude'] = lat
-        l['longitude'] = lon
+if __name__ == '__main__':
 
+    f = open('exampleRootPage.html')
 
-# insert the file into a database
-insertIntoDatabase('commuter', listings)
+    # https://stackoverflow.com/questions/2365411/convert-unicode-to-ascii-without-errors-in-python
+    # response = urlopen("https://example.com/gzipped-ressource")
+    # buffer = io.BytesIO(response.read()) # Use StringIO.StringIO(response.read()) in Python 2
+    # gzipped_file = gzip.GzipFile(fileobj=buffer)
+    # decoded = gzipped_file.read()
+    # content = decoded.decode("utf-8") # Replace utf-8 with the source encoding of your requested resource
+    
+    buffer = io.BytesIO(f.read())
+    gzipped_file = gzip.GzipFile(fileobj=buffer)
+    decoded = gzipped_file.read()
+    html = decoded.decode('utf-8')
+    
+    
+    
+    # parse data from listings
+    listings = parseListings(html)
+    
+    # for each link in the listings - extract latitude and longitude
+    for l in listings:
+        if extractLatLon(l['link']):
+            lat, lon = extractLatLon(l['link'])
+            l['latitude'] = lat
+            l['longitude'] = lon
+    
+    
+    # insert the file into a database
+    insertIntoDatabase('commuter', listings)    

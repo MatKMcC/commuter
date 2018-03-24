@@ -19,7 +19,7 @@ def Price(price):
 
 def Nbedrooms(nbedrooms):
     # use regex to get the numbers before 'br'
-    if nbedrooms != 'NULL':
+    if nbedrooms != None:
         try:
             nbedrooms = re.search('[0-9]*br', nbedrooms)[0]
             nbedrooms = re.sub('br', '', nbedrooms)
