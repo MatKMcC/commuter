@@ -11,7 +11,14 @@ from datetime import datetime
 conn = connect(dbname='commuter', host='localhost')
 cur = conn.cursor()
 
-# establish the connection and get the most recent date 
+# check if the database exist. if not create
+cur.execute("""
+SELECT exists(SELECT * FROM information_schema.tables WHERE table_name=%s)
+""", ('commuterdatapull'))
+cur.fetchone()[0]
+
+cur = conn.cursor()
+#  get the most recent date
 query = """
 SELECT 
 datetime
